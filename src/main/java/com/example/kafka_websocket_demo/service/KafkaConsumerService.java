@@ -8,14 +8,17 @@ import org.springframework.stereotype.Service;
 public class KafkaConsumerService {
 
     private final SimpMessagingTemplate messagingTemplate;
+    private final MessageService messagingService;
 
-    public KafkaConsumerService(SimpMessagingTemplate messagingTemplate) {
+    public KafkaConsumerService(SimpMessagingTemplate messagingTemplate, MessageService messagingService) {
         this.messagingTemplate = messagingTemplate;
+        this.messagingService = messagingService;
     }
 
     @KafkaListener(topics = "my-topic", groupId = "my-group")
     public void consumeMessage(String message) {
         System.out.println("📩 Получено сообщение из Kafka: " + message);
+        messagingService.saveMessage(message);
         messagingTemplate.convertAndSend("/topic/messages", message);
     }
 }
