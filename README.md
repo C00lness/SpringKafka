@@ -1,8 +1,8 @@
 @Controller - Возвращает Имя HTML-страницы (view), @ResponseBody нужен (если нужно вернуть данные) (Веб сайты) Работает с html через Thymeleaf и Model (ssr)
-http://localhost:8080/api/hello @GetMapping("/hello")
+http://localhost:8080/hello @GetMapping("/hello")
 @RestController - возвращает JSON / XML / текст, @ResponseBody включен.  Для REST API - основная логика бута
 http://localhost:8080/api/hello @RequestMapping("/api") @GetMapping("/hello")
-
+@PostMapping для пост запросов (get - получить данные, загрузить страницу, параметры в URL, Post - отправить данные, добавить, параметры в теле запроса)
 Бин — это объект, которым управляет Spring. Класс становится бином, если он помечен одной из аннотаций стереотипа (@Component, @Service, @Repository, @Controller) или объявлен через @Bean в конфигурации. Spring создаёт бины, настраивает их и внедряет зависимости через DI.
 
 DI - 3 варианта, во всех нужен @Autowired кроме варианта когда конструктор единственный - этот вариант бэст практика для внедрения т к можно делать поля final, гарантирует что зависимости переданы при создании объекта, как-то упрощает тестирование.
@@ -75,3 +75,25 @@ Consumer Group	Группа Consumer'ов, которые читают один 
 🎯 Как сказать на собеседовании
 «Kafka — это распределённая очередь сообщений. Producer отправляет сообщения в Topic, Consumer читает их оттуда. Kafka хранит сообщения в партициях и гарантирует порядок. Используется для асинхронного обмена между сервисами, обработки потоков данных и highload-систем.»
 
+Для ws добавили просто конфиг
+@Configuration
+@EnableWebSocketMessageBroker
+public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
+
+    @Override
+    public void registerStompEndpoints(StompEndpointRegistry registry) {
+        // Клиенты подключаются по адресу /ws
+        registry.addEndpoint("/ws").withSockJS();
+    }
+
+    @Override
+    public void configureMessageBroker(MessageBrokerRegistry registry) {
+        // Клиенты подписываются на /topic/messages
+        registry.enableSimpleBroker("/topic");
+        // Клиенты отправляют сообщения на /app/**
+        registry.setApplicationDestinationPrefixes("/app");
+    }
+}
+messagingTemplate.convertAndSend("/topic/messages", message); //Service/KafkaConsumer
+WebSocket — это постоянное двустороннее соединение. В проекте я использовал Spring WebSocket с STOMP. Клиенты подключаются по адресу /ws, 
+подписываются на топик, а сервер через SimpMessagingTemplate отправляет сообщения всем подписчикам, например, когда приходит новое сообщение из Kafka.
