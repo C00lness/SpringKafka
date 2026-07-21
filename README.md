@@ -118,3 +118,112 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 messagingTemplate.convertAndSend("/topic/messages", message); //Service/KafkaConsumer
 WebSocket — это постоянное двустороннее соединение. В проекте я использовал Spring WebSocket с STOMP. Клиенты подключаются по адресу /ws, 
 подписываются на топик, а сервер через SimpMessagingTemplate отправляет сообщения всем подписчикам, например, когда приходит новое сообщение из Kafka.
+
+### 🟢 Блок 1: Основы и Ядро (Core)
+
+**1. Чем Spring Boot отличается от обычного Spring?**
+*   **Spring** — это огромный фреймворк, требующий много ручной настройки (XML или JavaConfig).
+*   **Spring Boot** — это надстройка, которая предоставляет *Convention over Configuration* (Соглашение важнее конфигурации). Убирает бойлерплейт.
+
+**2. Три кита Spring Boot:**
+*   **Auto-configuration (Автоконфигурация):** Spring Boot смотрит на `classpath` (какие библиотеки добавлены) и автоматически настраивает бины. *Пример: добавили H2 в зависимости -> Spring сам создал DataSource и EntityManager.*
+*   **Starters (Стартеры):** Наборы готовых зависимостей. Например, `spring-boot-starter-web` тянет Tomcat, Spring MVC, Jackson.
+*   **Spring Boot CLI / Actuator:** Actuator (`spring-boot-starter-actuator`) добавляет production-ready фичи: эндпоинты `/actuator/health`, `/metrics`, `/env` для мониторинга.
+
+**3. Как работает Auto-configuration под капотом?**
+*   Аннотация `@EnableAutoConfiguration` (включена внутри `@SpringBootApplication`).
+*   Она использует `@Import(AutoConfigurationImportSelector.class)`.
+*   Селектор читает файл `META-INF/spring.factories` (в Spring Boot 2.x) или `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports` (в Spring Boot 3.x), находит классы автоконфигурации и применяет их, если выполнены условия (`@ConditionalOnClass`, `@ConditionalOnMissingBean`, `@ConditionalOnProperty`).
+
+---
+
+### 🟡 Блок 2: Бины и Внедрение Зависимостей (DI)
+
+**1. Стереотипы (аннотации):**
+*   `@Component` — базовый компонент.
+*   `@Service` — бизнес-логика (семантически то же, что Component, но для читаемости).
+*   `@Repository` — слой доступа к данным (DAO). **Важно:** автоматически переводит SQL-исключения в Spring `DataAccessException`.
+*   `@Controller` / `@RestController` — веб-слой.
+
+**2. `@Component` vs `@Bean`:**
+*   `@Component` вешается на сам класс (работает через сканирование пакетов `@ComponentScan`).
+*   `@Bean` вешается на метод внутри класса с `@Configuration`. Используется, когда нужно создать бин для **стороннего класса** (например, из чужой библиотеки), который нельзя пометить `@Component`.
+
+**3. scopes (Области видимости бинов):**
+*   `singleton` (по умолчанию) — один экземпляр на весь контекст.
+*   `prototype` — новый экземпляр при каждом запросе.
+*   `request`, `session`, `application` — только для Web-контекста.
+
+---
+
+###  Блок 3: Конфигурация и Профили
+
+**1. `@Value` vs `@ConfigurationProperties`:**
+*   `@Value("${app.name}")` — внедряет одно конкретное значение. Нет строгой типизации и валидации.
+*   `@ConfigurationProperties(prefix = "app")` — маппит группу свойств в Java-объект (POJO). **Интервьюерский фаворит:** поддерживает валидацию (`@Validated`), работает с коллекциями и сложными структурами.
+
+**2. Профили (Profiles):**
+*   Используются для разных окружений (dev, test, prod).
+*   Файлы: `application-dev.yml`, `application-prod.yml`.
+*   Активация: `spring.profiles.active=dev` в properties или через аргументы JVM `-Dspring.profiles.active=dev`.
+*   Аннотация `@Profile("dev")` на бинах или конфигурациях.
+
+---
+
+###  Блок 4: Работа с данными (Spring Data JPA)
+
+**1. Репозитории:**
+*   `CrudRepository` — базовые CRUD.
+*   `PagingAndSortingRepository` — добавляет пагинацию и сортировку.
+*   `JpaRepository` — наследует всё вышеперечисленное + добавляет JPA-специфичные методы (flush, deleteInBatch).
+
+**2. `@Transactional` (ОЧЕНЬ ЧАСТЫЙ ВОПРОС):**
+*   Управляет транзакциями. Открывает транзакцию до метода, коммитит после, делает rollback при unchecked exceptions (RuntimeException).
+*   **Почему может не работать?**
+    1. Метод не `public` (прокси Spring не видит private/protected).
+    2. Вызов `@Transactional` метода из другого метода **того же класса** (self-invocation bypasses proxy).
+    3. Исключение перехвачено внутри метода (`try-catch`).
+    4. Используется не тот менеджер транзакций.
+
+**3. Проблема N+1 и как её решать:**
+*   *Проблема:* При загрузке списка сущностей с `@OneToMany(LAZY)` Hibernate делает 1 запрос на список и N запросов на дочерние сущности.
+*   *Решение:* `JOIN FETCH` в JPQL, `@EntityGraph`, или использование DTO-проекций.
+
+---
+
+### 🟣 Блок 5: REST и Web
+
+**1. Аннотации контроллеров:**
+*   `@RestController` = `@Controller` + `@ResponseBody` (возвращает JSON/XML, а не имя view).
+*   `@RequestMapping` (базовый путь), `@GetMapping`, `@PostMapping` и т.д.
+*   `@PathVariable` (параметр в URL: `/users/{id}`), `@RequestParam` (query-параметр: `/users?id=1`), `@RequestBody` (тело запроса, парсится через Jackson).
+
+**2. Глобальная обработка ошибок:**
+*   `@ControllerAdvice` + `@ExceptionHandler`. Позволяет централизованно ловить исключения и возвращать красивый JSON-ответ (например, RFC 7807 Problem Details).
+
+---
+
+### 🔵 Блок 6: Тестирование
+
+*   `@SpringBootTest` — поднимает **весь** контекст приложения (тяжелые интеграционные тесты).
+*   `@WebMvcTest` — тестирует только слой контроллеров (быстро, не поднимает БД).
+*   `@DataJpaTest` — тестирует только слой репозиториев (поднимает H2 в памяти).
+*   `@MockBean` — заменяет реальный бин в контексте Spring на Mockito-мок.
+
+---
+
+###  Блок 7: Топ каверзных вопросов (Gotchas)
+
+1.  **Circular Dependency (Круговая зависимость):** Бин A требует Бин B, а Бин B требует Бин A.
+    *   *Как решить:* Рефакторинг (вынести общую логику в Бин C), использование `@Lazy` на одном из полей, или переход на Setter Injection вместо Constructor Injection.
+2.  **Как Spring Boot запускается?**
+    *   Метод `SpringApplication.run()`. Он создает `ApplicationContext`, запускает embedded server (Tomcat/Jetty/Undertow), применяет автоконфигурацию и вызывает `ApplicationRunner`/`CommandLineRunner`.
+3.  **В чем разница между `application.properties` и `application.yml`?**
+    *   Функционально они одинаковы. YAML удобнее для иерархических структур и списков, Properties — проще и линейнее. Если есть оба файла, Properties имеет приоритет (в старых версиях) или они мержатся.
+4.  **Что такое Spring Boot DevTools?**
+    *   Набор инструментов для разработки. Главная фича — **Automatic Restart** (быстрая перезагрузка при изменении классов) и **LiveReload**.
+
+---
+
+**💡 Совет перед собесом:**
+Не просто заучивайте аннотации. Интервьюеры обожают спрашивать: *"А что произойдет, если...?"* или *"Как это работает внутри?"*. Всегда пытайтесь связать ответ с жизненным циклом бина, прокси-объектами или тем, как работает classloader.
