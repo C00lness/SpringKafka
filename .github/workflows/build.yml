@@ -20,8 +20,11 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Build with Maven
-        run: mvn clean compile
+      - name: Build with Maven (compile + test + package)
+        run: mvn clean package
 
-      - name: Run tests
-        run: mvn test
+      - name: Upload JAR as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: spring-kafka-app
+          path: target/*.jar
