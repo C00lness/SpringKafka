@@ -242,3 +242,6 @@ uri: http://localhost:8082
 predicates:
 - Path=/api/messages/**       # запросы на /api/messages/* идут в message-service
 YAML удобнее для сложных конфигураций, а properties — проще для простых.
+
+CI \ CD - ci - тесты сборка, cd - выложить на сервер
+Делаем папку .github/workflow/build.yml - пушим в гит находим там в actions 
